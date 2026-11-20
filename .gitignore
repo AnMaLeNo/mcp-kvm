@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.egg-info/
+build/
+.DS_Store
+captures/
+.kvm.env
+*.configure.log
+src/mcp_kvm/_bin/
+.mcp.json

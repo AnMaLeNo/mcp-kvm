@@ -1,0 +1,22 @@
+[project]
+name = "mcp-kvm"
+version = "0.1.0"
+description = "MCP server that lets an AI agent operate a physical computer through HDMI capture and USB HID"
+requires-python = ">=3.10"
+dependencies = [
+  "mcp>=2",
+  "av>=12",
+  "numpy>=1.26",
+  "pillow>=10",
+  "pyserial>=3.5",
+]
+
+[project.scripts]
+mcp-kvm = "mcp_kvm.server:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

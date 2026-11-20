@@ -1,0 +1,28 @@
+; Half-duplex serial link on a single wire, 8 data bits, no parity, 1 stop bit.
+;
+; The line idles high through pull-ups and a transmitter only ever pulls it
+; low (open drain), so two boards talking at once cannot short each other.
+; Both programs run at 8 clock cycles per bit.
+
+.program wire_tx
+.side_set 1 opt pindirs
+; The pin's output value is fixed at 0: pindir 1 pulls the line low, pindir 0
+; releases it. The caller therefore writes each byte inverted.
+    pull       side 0 [7]   ; stop bit, then idle until there is a byte
+    set x, 7   side 1 [7]   ; start bit
+bitloop:
+    out pindirs, 1          ; data bit, least significant first
+    jmp x-- bitloop   [6]
+
+.program wire_rx
+start:
+    wait 0 pin 0            ; start bit
+    set x, 7    [10]        ; move to the middle of the first data bit
+bitloop:
+    in pins, 1
+    jmp x-- bitloop [6]
+    jmp pin good_stop       ; stop bit must be high
+    wait 1 pin 0            ; framing error: drop the byte, wait for idle
+    jmp start
+good_stop:
+    push
