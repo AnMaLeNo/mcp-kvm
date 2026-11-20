@@ -20,7 +20,10 @@ mcp = MCPServer(
         "operating system is running (firmware setup, boot menu); a text-only screen has no "
         "mouse, use the keyboard there. Pointer tools report which mouse they used: the "
         "absolute pointer, or the relative mouse where only that one is accepted (it is slower "
-        "and has no wheel). If the cursor does not land on the point, call `recalibrate_pointer`."
+        "and has no wheel). If the cursor does not land on the point, call `recalibrate_pointer`. "
+        "A boot loader such as GRUB may draw the result of a key several seconds late: take "
+        "another screenshot before acting on what the screen shows, and press a key early to "
+        "stop its countdown."
     ),
 )
 

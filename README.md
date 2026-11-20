@@ -21,8 +21,9 @@ Vérifié sur un PC (carte mère MSI B550, Windows 11 et Ubuntu en double amorç
 | Situation | Clavier | Souris |
 |---|---|---|
 | Windows | frappe exacte (560 caractères, symboles et accents), environ 67 caractères/s | pointeur absolu : clic, double-clic, clic droit, glisser, molette, au pixel près |
-| BIOS (MSI Click BIOS 5) | navigation, entrée dans le BIOS par Suppr au démarrage, redémarrage par Ctrl+Alt+Suppr | souris relative choisie automatiquement : clic et double-clic au pixel près |
-| GRUB 2.12 | menu et ligne de commande, frappe exacte à 2,8 caractères/s (rythme imposé par GRUB) | GRUB n'a pas de souris |
+| Ubuntu 22.04 (écran de connexion) | voyants du clavier pilotés par le système | pointeur absolu choisi automatiquement, clics dans les menus au point demandé |
+| BIOS (MSI Click BIOS 5) | navigation, entrée dans le BIOS par Suppr et menu de démarrage par F11 au démarrage, redémarrage par Ctrl+Alt+Suppr | souris relative choisie automatiquement : clic et double-clic au pixel près |
+| GRUB 2.12 | menu et ligne de commande, ligne de 110 caractères exacte ; 3 à 7 caractères/s selon la résolution, rythme imposé par GRUB | GRUB n'a pas de souris |
 
 | Autre élément | État |
 |---|---|
@@ -31,7 +32,7 @@ Vérifié sur un PC (carte mère MSI B550, Windows 11 et Ubuntu en double amorç
 | Durée d'une action avec sa capture | environ 0,5 s sous Windows, 1,7 s pour un clic dans le BIOS |
 | Flash des deux cartes sans y toucher | fonctionne (5 s pour la carte cible) |
 
-Pas encore essayé : Linux et macOS comme cibles, d'autres BIOS, d'autres adaptateurs de capture.
+Pas encore essayé : une session Linux ouverte, macOS comme cible, d'autres BIOS, d'autres adaptateurs de capture.
 
 ## Câblage
 
@@ -117,8 +118,8 @@ Pour que tout soit écrit plus gros, c'est la résolution de sortie de la cible 
 
 ## Limites connues
 
-- Avant le démarrage du système, une carte graphique n'affiche en général que sur une seule sortie. Pour voir le BIOS ou GRUB par la capture, l'adaptateur HDMI doit être le seul écran branché.
-- GRUB prend les frappes lentement (2,8 caractères/s mesurés) et son affichage a parfois suivi une action avec une dizaine de secondes de retard : reprendre une capture avant de valider.
+- Avant le démarrage du système, une carte graphique n'affiche en général que sur une seule sortie. Pour voir le BIOS ou GRUB par la capture, l'adaptateur HDMI doit être le seul écran vu par la cible. Un répartiteur HDMI (une entrée, deux sorties) permet de garder un écran en parallèle : la cible n'en voit qu'un.
+- GRUB prend les frappes lentement et redessine son écran avec retard : une ligne tapée n'est apparue que quelques secondes après la fin de la saisie, un changement de sélection jusqu'à une dizaine de secondes après, et le compte à rebours affiché était en retard sur le vrai. Reprendre une capture avant de valider, et arrêter le compte à rebours (une touche) sans attendre de le voir.
 - Dans le BIOS essayé, un déplacement de souris envoyé juste derrière le retour au coin est perdu ; le serveur attend 150 ms (perte constatée sans pause, plus aucune à partir de 50 ms). Un autre BIOS peut demander une autre valeur (`HOME_PAUSE_S` dans [src/mcp_kvm/pointer.py](src/mcp_kvm/pointer.py)).
 - La molette n'existe pas en mode souris relative : utiliser les flèches et Page précédente/suivante.
 
