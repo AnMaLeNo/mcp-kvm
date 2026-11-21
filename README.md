@@ -21,7 +21,7 @@ Vérifié sur un PC (carte mère MSI B550, Windows 11 et Ubuntu en double amorç
 | Situation | Clavier | Souris |
 |---|---|---|
 | Windows | frappe exacte (560 caractères, symboles et accents), environ 67 caractères/s | pointeur absolu : clic, double-clic, clic droit, glisser, molette, au pixel près |
-| Ubuntu 22.04 (écran de connexion) | voyants du clavier pilotés par le système | pointeur absolu choisi automatiquement, clics dans les menus au point demandé |
+| Ubuntu 24.04 (écran de connexion et session) | connexion par mot de passe avec symboles, commandes tapées dans un terminal, `sudo` compris | pointeur absolu choisi automatiquement, clics dans les menus au point demandé |
 | BIOS (MSI Click BIOS 5) | navigation, entrée dans le BIOS par Suppr et menu de démarrage par F11 au démarrage, redémarrage par Ctrl+Alt+Suppr | souris relative choisie automatiquement : clic et double-clic au pixel près |
 | GRUB 2.12 | menu et ligne de commande, ligne de 110 caractères exacte ; 3 à 7 caractères/s selon la résolution, rythme imposé par GRUB | GRUB n'a pas de souris |
 
@@ -32,7 +32,7 @@ Vérifié sur un PC (carte mère MSI B550, Windows 11 et Ubuntu en double amorç
 | Durée d'une action avec sa capture | environ 0,5 s sous Windows, 1,7 s pour un clic dans le BIOS |
 | Flash des deux cartes sans y toucher | fonctionne (5 s pour la carte cible) |
 
-Pas encore essayé : une session Linux ouverte, macOS comme cible, d'autres BIOS, d'autres adaptateurs de capture.
+Pas encore essayé : macOS comme cible, d'autres BIOS, d'autres adaptateurs de capture.
 
 ## Câblage
 
