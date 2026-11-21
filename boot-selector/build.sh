@@ -91,6 +91,7 @@ VERSION=$VERSION
 BROKERS="$BROKERS"
 BROKER_NEIGH="$BROKER_NEIGH"
 BROKER_PORT=1883
+READ_ATTEMPTS=${READ_ATTEMPTS:-4}
 TOPIC_PREFIX=bureau/pc/boot
 FALLBACK=${FALLBACK:-windows}
 # System id -> description of its firmware boot entry.
