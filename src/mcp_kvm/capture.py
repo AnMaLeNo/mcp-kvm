@@ -21,6 +21,7 @@ from pathlib import Path
 from PIL import Image, ImageChops
 
 IDLE_STOP_S = 120.0
+BAD_DATA_GIVE_UP_S = 5.0  # ffmpeg source: undecodable packets tolerated this long without one image
 HELPER_PATH = Path(__file__).parent / "_bin" / "kvm-capture"
 
 
@@ -148,6 +149,23 @@ class HelperCapture(Capture):
         return image, when
 
 
+def _v4l2_path(device: str) -> str:
+    """Linux: the /dev/video* node of a capture device given by name."""
+    if device.startswith("/"):
+        return device
+    # A dongle registers two nodes under one name: frames come from the first.
+    nodes = sorted(Path("/sys/class/video4linux").glob("video*"), key=lambda n: int(n.name[5:]))
+    for node in nodes:
+        try:
+            name = (node / "name").read_text().strip()
+        except OSError:
+            continue
+        if device.lower() in name.lower():
+            return f"/dev/{node.name}"
+    raise CaptureError(f"capture device {device!r} not found; "
+                       "set KVM_CAPTURE_DEVICE to its name (v4l2-ctl --list-devices) or to its /dev/video path")
+
+
 def _open_ffmpeg(device: str, size: tuple[int, int]):
     import av
     video_size = f"{size[0]}x{size[1]}"
@@ -157,7 +175,8 @@ def _open_ffmpeg(device: str, size: tuple[int, int]):
         return av.open(f"{device}:none", format="avfoundation",
                        options={"framerate": "30", "video_size": video_size, "pixel_format": "nv12"})
     if sys.platform.startswith("linux"):
-        return av.open(device, format="v4l2", options={"video_size": video_size, "input_format": "mjpeg"})
+        return av.open(_v4l2_path(device), format="v4l2",
+                       options={"video_size": video_size, "input_format": "mjpeg", "framerate": "30"})
     return av.open(f"video={device}", format="dshow", options={"video_size": video_size})
 
 
@@ -181,13 +200,24 @@ class FfmpegCapture(Capture):
         container = None
         try:
             container = _open_ffmpeg(self.device, self.size)
+            last_good = time.monotonic()
             while time.monotonic() - self._last_request < IDLE_STOP_S:
                 try:
                     for packet in container.demux(video=0):
-                        for frame in packet.decode():
+                        try:
+                            frames = packet.decode()
+                        except av.error.InvalidDataError:
+                            # A dongle with no picture to send, or between two
+                            # video modes of the target, emits packets that are
+                            # not images. Seen at one packet in two on Linux.
+                            if time.monotonic() - last_good > BAD_DATA_GIVE_UP_S:
+                                raise
+                            frames = []
+                        for frame in frames:
+                            last_good = time.monotonic()
                             with self._cond:
                                 self._frame = frame
-                                self._frame_time = time.monotonic()
+                                self._frame_time = last_good
                                 self._error = None
                                 self._cond.notify_all()
                         break

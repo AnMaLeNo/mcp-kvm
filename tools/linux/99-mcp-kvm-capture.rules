@@ -1,0 +1,9 @@
+# Keeps the HDMI capture dongle (MacroSilicon MS2109) awake on a Linux host.
+#
+# Linux suspends an idle USB device after 2 seconds. A suspended dongle stops
+# presenting a screen on its HDMI input: the target sees its display unplugged
+# whenever nobody is capturing, and shows nothing at power-on.
+#
+# Install: sudo cp 99-mcp-kvm-capture.rules /etc/udev/rules.d/
+#          sudo udevadm control --reload && sudo udevadm trigger --action=add --subsystem-match=usb
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="534d", ATTR{idProduct}=="2109", TEST=="power/control", ATTR{power/control}="on"

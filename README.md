@@ -62,6 +62,19 @@ Chemins par défaut du pico-sdk 2.1.1 et de la toolchain : `~/pico/pico-sdk` et 
 
 Sans le module de capture natif, le serveur se rabat sur ffmpeg, limité sur macOS au mode non compressé de l'adaptateur : 5 images/s et 0,5 à 0,6 s de retard.
 
+### Sur Linux (testé sur un Raspberry Pi 5)
+
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -e .
+sudo cp tools/linux/99-mcp-kvm-capture.rules /etc/udev/rules.d/
+sudo udevadm control --reload && sudo udevadm trigger --action=add --subsystem-match=usb
+```
+
+Il n'y a pas de module natif à compiler : la capture passe par ffmpeg et v4l2, dans le mode compressé de l'adaptateur (30 images/s). L'utilisateur doit appartenir aux groupes `video` et `dialout`.
+
+La règle udev est indispensable. Sans elle, Linux met l'adaptateur en veille USB deux secondes après la dernière capture, et un adaptateur en veille ne se présente plus comme un écran : la cible le voit débranché, n'affiche rien au démarrage, et les captures sont noires.
+
 ## Flasher les cartes sans y toucher
 
 ```sh
@@ -82,7 +95,7 @@ Réglages, par variables d'environnement :
 |---|---|---|
 | `KVM_LINK` | liaison vers la carte : `serial`, `serial:<port>` ou `ssh:<utilisateur@cible>` | port série local s'il y en a un, sinon SSH vers `KVM_SSH` |
 | `KVM_SSH` | `utilisateur@cible`, pour la liaison SSH | aucun |
-| `KVM_CAPTURE_DEVICE` | nom de l'adaptateur de capture | `USB3. 0 capture` |
+| `KVM_CAPTURE_DEVICE` | nom de l'adaptateur de capture, ou sur Linux son chemin `/dev/video*` | `USB3. 0 capture` |
 | `KVM_CAPTURE_SIZE` | taille d'image demandée à l'adaptateur | `1920x1080` |
 | `KVM_CAPTURE_BACKEND` | `native`, `ffmpeg` ou `auto` | `auto` |
 | `KVM_SCREENSHOT_WIDTH` | largeur des captures renvoyées à l'agent | `1280` |
