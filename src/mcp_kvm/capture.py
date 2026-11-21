@@ -21,6 +21,7 @@ from pathlib import Path
 from PIL import Image, ImageChops
 
 IDLE_STOP_S = 120.0
+FIRST_FRAMES_SKIPPED = 5    # ffmpeg source: images dropped after opening the device
 BAD_DATA_GIVE_UP_S = 5.0  # ffmpeg source: undecodable packets tolerated this long without one image
 HELPER_PATH = Path(__file__).parent / "_bin" / "kvm-capture"
 
@@ -201,6 +202,9 @@ class FfmpegCapture(Capture):
         try:
             container = _open_ffmpeg(self.device, self.size)
             last_good = time.monotonic()
+            # A dongle's first images after opening can be half-filled: one came
+            # out as noise over a green band, and decoded without error.
+            skip = FIRST_FRAMES_SKIPPED
             while time.monotonic() - self._last_request < IDLE_STOP_S:
                 try:
                     for packet in container.demux(video=0):
@@ -215,6 +219,9 @@ class FfmpegCapture(Capture):
                             frames = []
                         for frame in frames:
                             last_good = time.monotonic()
+                            if skip:
+                                skip -= 1
+                                continue
                             with self._cond:
                                 self._frame = frame
                                 self._frame_time = last_good
