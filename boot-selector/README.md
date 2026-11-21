@@ -24,7 +24,7 @@ Il ne monte jamais les disques des autres systèmes.
 | Situation | Comportement |
 |---|---|
 | Pas de réseau, broker injoignable, aucun souhait, souhait inconnu | démarre le système de repli (`FALLBACK`, Windows par défaut) et le dit dans son compte rendu |
-| Broker injoignable | abandon en 3 s au plus (mesuré), puis repli |
+| Broker injoignable | quatre tentatives (`READ_ATTEMPTS`), chacune relançant la découverte d'adresse du broker : environ 16 s mesurés avant le repli, 28 s au pire |
 | Le sélecteur n'est pas allé au bout (plantage, coupure) | au démarrage suivant, son GRUB rend la main au BIOS, qui lance l'entrée suivante de son ordre ; le sélecteur réessaie la fois d'après |
 
 Le journal du dernier passage est dans `selector-last.log`, à la racine de la partition du sélecteur.
@@ -58,11 +58,13 @@ sudo efibootmgr -c -d /dev/nvme0n1 -p <numéro de la partition> -L selector -l '
 
 Les noms des entrées du BIOS associés aux identifiants sont dans `build.sh` (`LABEL_windows`, `LABEL_ubuntu`, `LABEL_agent`).
 
-## Deux pièges rencontrés
+## Trois pièges rencontrés
 
 **L'ordre de démarrage peut appartenir au BIOS.** Sur la carte mère essayée (MSI B550), l'ordre écrit par `efibootmgr` ou par Windows est défait au démarrage suivant : la carte tient sa propre liste. Il faut y placer le sélecteur à la main, dans *Settings › Boot › UEFI Hard Disk Drive BBS Priorities*. Les entrées y sont nommées d'après leur chargeur (trois lignes « ubuntu » ici), pas d'après leur libellé.
 
 **La découverte d'adresses peut ne pas passer entre deux clients Wi-Fi.** Sur le réseau essayé, le PC et le broker, tous deux en Wi-Fi, ne se trouvaient pas (requêtes ARP non relayées par la box), alors que le trafic direct passait. `BROKER_NEIGH` donne au sélecteur l'adresse matérielle du broker ; il la vérifie par une requête directe, ce qui le présente aussi au broker.
+
+**Le chemin Wi-Fi vers le broker n'est pas toujours prêt du premier coup.** Un passage sur cinq environ n'a rien lu dans les 5 s de l'unique tentative d'origine et a démarré Windows par repli, alors que le souhait était publié. Lors du test de la correction, les tentatives 1 et 2 ont échoué et la 3e a réussi.
 
 ## Mesures (un PC, novembre 2026)
 

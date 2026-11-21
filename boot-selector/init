@@ -95,21 +95,37 @@ network_up() {
     return 1
   }
   say "network up: $(ip -4 -o addr show wlan0 | awk '{print $4}')"
-  # Some access points do not relay address discovery between two Wi-Fi
-  # clients. With the broker's hardware address known in advance, the kernel
-  # checks it with a direct probe instead, which also introduces this machine
-  # to the broker.
+  preset_neighbours
+  return 0
+}
+
+# Some access points do not relay address discovery between two Wi-Fi clients.
+# With the broker's hardware address known in advance, the kernel checks it with
+# a direct probe instead, which also introduces this machine to the broker.
+preset_neighbours() {
   for pair in $BROKER_NEIGH; do
     # The full program by its own name: the shell would run busybox's "ip" otherwise.
     ip-full neigh replace ${pair%%=*} lladdr ${pair#*=} dev wlan0 nud stale >>$LOG 2>&1 || say "could not preset the address of ${pair%%=*}"
   done
-  return 0
 }
 
+# The path to the broker over Wi-Fi is not always up on the first try (one run
+# in several found nothing within 5 s), so ask again a few times, waking the
+# path in between, before giving up.
 read_target() {
-  for host in $BROKERS; do
-    # "timeout" bounds the whole exchange: the client's own limit does not cover connecting.
-    t=$(timeout 5 mosquitto_sub -h $host -p $BROKER_PORT -t "$TOPIC_PREFIX/target" -C 1 -W 3 2>>$LOG) && [ -n "$t" ] && { echo "$t"; return 0; }
+  attempt=1
+  while [ $attempt -le $READ_ATTEMPTS ]; do
+    for host in $BROKERS; do
+      # "timeout" bounds the whole exchange: the client's own limit does not cover connecting.
+      t=$(timeout 5 mosquitto_sub -h $host -p $BROKER_PORT -t "$TOPIC_PREFIX/target" -C 1 -W 3 2>>$LOG) && [ -n "$t" ] && {
+        [ $attempt -gt 1 ] && say "wish read on attempt $attempt"
+        echo "$t"; return 0
+      }
+    done
+    say "no answer from the broker (attempt $attempt of $READ_ATTEMPTS)"
+    preset_neighbours
+    for host in $BROKERS; do ping -c 2 -W 1 $host >/dev/null 2>&1; done
+    attempt=$((attempt + 1))
   done
   return 1
 }
