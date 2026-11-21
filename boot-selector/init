@@ -1,0 +1,167 @@
+#!/bin/sh
+# Boot selector: runs from memory at every power-on, asks the MQTT broker which
+# system is wanted, tells the firmware to start it next, and restarts.
+#
+# It never touches the other systems' disks. The only partition it mounts is
+# its own, to record that the run went through (see grub.cfg).
+export PATH=/usr/bin:/usr/sbin:/bin:/sbin
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs dev /dev 2>/dev/null
+mount -t efivarfs efivarfs /sys/firmware/efi/efivars
+. /etc/selector.conf
+
+VARS=/sys/firmware/efi/efivars
+GUID=8be4df61-93ca-11d2-aa0d-00e098032b8c
+LOG=/tmp/selector.log
+OWN=
+: > $LOG
+
+# The log of the run is copied to the selector's own partition as it grows, so
+# a run that goes wrong still leaves its trace.
+persist() {
+  [ -n "$OWN" ] && cp $LOG /mnt/selector/selector-last.log && sync
+}
+
+say() {
+  echo "[selector $(cut -d' ' -f1 /proc/uptime)s] $*" | tee -a $LOG > /dev/console
+  persist
+}
+
+mount_own() {
+  modprobe nvme >>$LOG 2>&1
+  i=0; dev=
+  while [ -z "$dev" ] && [ $i -lt 30 ]; do dev=$(findfs LABEL=SELECTOR 2>/dev/null); [ -n "$dev" ] || sleep 0.1; i=$((i + 1)); done
+  [ -n "$dev" ] || { say "own partition not found"; return 1; }
+  modprobe nls_iso8859-1 >>$LOG 2>&1
+  mount -t vfat -o rw,codepage=437,iocharset=iso8859-1 "$dev" /mnt/selector >>$LOG 2>&1 || { say "own partition does not mount"; return 1; }
+  OWN=1
+}
+
+kernel_said() {
+  dmesg | grep -i -E "$1" | tail -n 25 >> $LOG
+  persist
+}
+
+# Firmware entry (4 hex digits) whose description is exactly $1.
+entry_for_label() {
+  for f in $VARS/Boot[0-9A-F][0-9A-F][0-9A-F][0-9A-F]-$GUID; do
+    [ -e "$f" ] || continue
+    # 4 bytes of variable attributes, 4 of entry attributes, 2 of path length,
+    # then the description in UTF-16 up to a zero unit, then binary path data.
+    d=
+    for unit in $(dd if="$f" bs=1 skip=10 2>/dev/null | hexdump -v -e '1/2 "%04x "'); do
+      [ "$unit" = 0000 ] && break
+      case "$unit" in
+        00[2-7]?) d="$d$(printf "\x${unit#00}")" ;;
+        *) d="$d?" ;;
+      esac
+    done
+    if [ "$d" = "$1" ]; then
+      n=${f#$VARS/Boot}
+      echo "${n%%-*}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+label_for() {
+  eval "echo \"\$LABEL_$1\""
+}
+
+set_next() {
+  hi=$(echo "$1" | cut -c1-2); lo=$(echo "$1" | cut -c3-4)
+  v=$VARS/BootNext-$GUID
+  [ -e $v ] && chattr -i $v 2>/dev/null
+  printf "\007\000\000\000\x$lo\x$hi" > $v
+}
+
+network_up() {
+  # The ciphers Wi-Fi needs; the kernel also loads what it wants by itself
+  # through /sbin/modprobe.
+  for m in ccm cmac gcm; do modprobe $m >>$LOG 2>&1; done
+  modprobe iwlmvm >>$LOG 2>&1 || say "modprobe iwlmvm failed"
+  i=0
+  while [ ! -e /sys/class/net/wlan0 ] && [ $i -lt 80 ]; do sleep 0.1; i=$((i + 1)); done
+  [ -e /sys/class/net/wlan0 ] || { say "no Wi-Fi interface: $(ls /sys/class/net | tr '\n' ' ')"; kernel_said 'iwl|firmware|cfg80211|module'; return 1; }
+  ip link set wlan0 up >>$LOG 2>&1
+  wpa_supplicant -B -D nl80211 -i wlan0 -c /etc/wpa_supplicant.conf -f /tmp/wpa.log >>$LOG 2>&1 || say "wpa_supplicant did not start"
+  udhcpc -i wlan0 -n -q -t 15 -T 1 -A 0 -s /etc/udhcpc.script >>$LOG 2>&1 || {
+    say "no address from DHCP"
+    tail -n 15 /tmp/wpa.log >> $LOG 2>/dev/null
+    tail -n 4 /tmp/wpa.log > /dev/console 2>/dev/null
+    kernel_said 'wlan0|iwl|auth|assoc|alg|crypto'
+    return 1
+  }
+  say "network up: $(ip -4 -o addr show wlan0 | awk '{print $4}')"
+  # Some access points do not relay address discovery between two Wi-Fi
+  # clients. With the broker's hardware address known in advance, the kernel
+  # checks it with a direct probe instead, which also introduces this machine
+  # to the broker.
+  for pair in $BROKER_NEIGH; do
+    # The full program by its own name: the shell would run busybox's "ip" otherwise.
+    ip-full neigh replace ${pair%%=*} lladdr ${pair#*=} dev wlan0 nud stale >>$LOG 2>&1 || say "could not preset the address of ${pair%%=*}"
+  done
+  return 0
+}
+
+read_target() {
+  for host in $BROKERS; do
+    # "timeout" bounds the whole exchange: the client's own limit does not cover connecting.
+    t=$(timeout 5 mosquitto_sub -h $host -p $BROKER_PORT -t "$TOPIC_PREFIX/target" -C 1 -W 3 2>>$LOG) && [ -n "$t" ] && { echo "$t"; return 0; }
+  done
+  return 1
+}
+
+report() {
+  for host in $BROKERS; do
+    timeout 5 mosquitto_pub -h $host -p $BROKER_PORT -r -q 1 -t "$TOPIC_PREFIX/status" -m "$1" 2>>$LOG && return 0
+  done
+  return 1
+}
+
+# Tell GRUB the run completed.
+record_success() {
+  [ -n "$OWN" ] || return 1
+  { printf '# GRUB Environment Block\nfailed=0\n'; dd if=/dev/zero bs=1024 count=1 2>/dev/null | tr '\000' '#'; } | head -c 1024 > /mnt/selector/EFI/ubuntu/grubenv
+  sync
+}
+
+say "boot selector $VERSION"
+mount_own || kernel_said 'nvme|fat|module'
+source=mqtt; reason=
+if network_up; then
+  target=$(read_target) || { source=fallback; reason="no wish on the broker"; }
+else
+  source=fallback; reason="no network"
+fi
+if [ "$source" = mqtt ] && [ -z "$(label_for "$target")" ]; then
+  source=fallback; reason="unknown system $target"
+fi
+[ "$source" = fallback ] && target=$FALLBACK
+say "target: $target ($source${reason:+: $reason})"
+
+entry=$(entry_for_label "$(label_for "$target")") || {
+  say "no firmware entry named '$(label_for "$target")'"
+  source=fallback; reason="no firmware entry for $target"; target=$FALLBACK
+  entry=$(entry_for_label "$(label_for "$target")")
+}
+
+if [ -n "$entry" ] && set_next "$entry"; then
+  say "next start: Boot$entry"
+  if [ "$source" = mqtt ]; then
+    report "{\"event\":\"selected\",\"target\":\"$target\",\"source\":\"mqtt\"}"
+  else
+    report "{\"event\":\"selected\",\"target\":\"$target\",\"source\":\"fallback\",\"reason\":\"$reason\"}"
+  fi
+  record_success || say "could not record success"
+else
+  # Leaving the failure flag set makes GRUB hand over to the next firmware
+  # entry on the coming start instead of running this again.
+  say "could not set the next start: leaving it to the firmware order"
+fi
+persist
+[ -n "$OWN" ] && umount /mnt/selector
+sync
+reboot -f
