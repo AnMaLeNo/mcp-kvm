@@ -116,6 +116,10 @@ Le choix est refait de lui-même quand la cible redémarre ou passe du BIOS à u
 
 Pour que tout soit écrit plus gros, c'est la résolution de sortie de la cible qu'il faut baisser (ou sa mise à l'échelle qu'il faut augmenter), dans ses réglages d'affichage. L'adaptateur de capture ne peut pas l'imposer : c'est la cible qui choisit parmi les modes qu'il annonce.
 
+## Choisir le système de démarrage à distance
+
+Le dossier [boot-selector/](boot-selector/) contient un mini-système qui démarre en premier, lit sur un broker MQTT le système voulu et y redémarre. Il est indépendant du serveur MCP ; il complète le KVM pour une machine à plusieurs systèmes.
+
 ## Limites connues
 
 - Avant le démarrage du système, une carte graphique choisit seule sur quelle sortie elle affiche : aucun réglage ne permet de désigner l'adaptateur. Sur le PC essayé, avec l'écran en DisplayPort et l'adaptateur en HDMI, le BIOS n'apparaissait que sur l'écran ; avec les deux en HDMI sur la carte, il apparaît sur la capture. À vérifier sur chaque machine, en échangeant les câbles si besoin.
