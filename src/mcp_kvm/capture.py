@@ -23,6 +23,7 @@ from PIL import Image, ImageChops
 IDLE_STOP_S = 120.0
 FIRST_FRAMES_SKIPPED = 5    # ffmpeg source: images dropped after opening the device
 BAD_DATA_GIVE_UP_S = 5.0  # ffmpeg source: undecodable packets tolerated this long without one image
+BLACK_LEVEL = 24            # brightest pixel (0..255) of a frame still counted as all black
 HELPER_PATH = Path(__file__).parent / "_bin" / "kvm-capture"
 
 
@@ -77,6 +78,14 @@ def _difference(a: Image.Image, b: Image.Image) -> float:
                                  b.convert("L").resize(small, Image.BILINEAR))
     histogram = diff.histogram()
     return sum(value * count for value, count in enumerate(histogram)) / (small[0] * small[1])
+
+
+def is_black(frame: Image.Image) -> bool:
+    """True if no pixel of the frame is brighter than a dark grey: a target whose
+    display is asleep comes out as a uniform frame at level 7 out of 255. One
+    lit pixel is enough to say no, so a lone cursor on a black console counts
+    as a picture."""
+    return frame.convert("L").getextrema()[1] <= BLACK_LEVEL
 
 
 class HelperCapture(Capture):
