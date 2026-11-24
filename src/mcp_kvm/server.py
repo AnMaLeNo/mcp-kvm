@@ -8,7 +8,7 @@ import io
 from mcp.server.mcpserver import Image, MCPServer
 
 from .config import build_kvm
-from .kvm import Kvm
+from .kvm import WAKE_CHECKS, Kvm
 
 mcp = MCPServer(
     "kvm",
@@ -61,11 +61,19 @@ async def _act(description: str, action, screenshot: bool, pointer: bool = False
 
 @mcp.tool(structured_output=False)
 async def screenshot() -> list:
-    """Current screen of the target. Coordinates used by every other tool are pixels of this image."""
+    """Current screen of the target. Coordinates used by every other tool are pixels of this image.
+    An all-black screen is taken for a display gone to sleep: Shift is pressed and the screen
+    is watched for a few seconds. The result says when that happened, and comes without an
+    image if the screen stayed black."""
     async with _lock:
         kvm = _get()
-        image, _ = await asyncio.to_thread(kvm.screenshot)
-    return [f"Screen is {image.width}x{image.height}.", _jpeg(image)]
+        image, woken = await asyncio.to_thread(kvm.screenshot_awake)
+    if image is None:
+        return [f"No picture: the screen is all black, and stayed black for {WAKE_CHECKS} s after "
+                "Shift was pressed to wake it. The target may be off, in deep sleep, or really "
+                "showing a black screen."]
+    note = " It was all black: Shift was pressed to wake the display." if woken else ""
+    return [f"Screen is {image.width}x{image.height}.{note}", _jpeg(image)]
 
 
 @mcp.tool(structured_output=False)

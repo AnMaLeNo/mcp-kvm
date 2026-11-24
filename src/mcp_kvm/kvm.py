@@ -5,13 +5,15 @@ import time
 
 from PIL import Image
 
-from .capture import Capture
+from .capture import Capture, is_black
 from .keymap import KEY_NUMLOCK, KEYPAD_DIGITS, LAYOUTS, MOD_LALT, MODIFIERS, parse_combo
 from .link import Link
 from .pointer import Pointer
 
 BUTTONS = {"left": 0x01, "right": 0x02, "middle": 0x04}
 STROKES_PER_LINE = 60
+WAKE_KEY = "shift"  # wakes a sleeping display and types nothing
+WAKE_CHECKS = 4     # looks at the screen after the wake key, one second apart
 
 
 class Kvm:
@@ -46,6 +48,26 @@ class Kvm:
         else:
             frame, settled = self._fresh_frame(), True
         return frame.resize(self.screen, Image.LANCZOS), settled
+
+    def screenshot_awake(self) -> tuple[Image.Image | None, bool]:
+        """Screenshot that first wakes a target whose display went to sleep.
+
+        An all-black frame is taken for a sleeping display: the wake key is
+        pressed, then the screen is looked at once per second, WAKE_CHECKS
+        times. Returns the screenshot, or None if the screen stayed black, and
+        whether the key was pressed.
+        """
+        frame = self._fresh_frame()
+        if not is_black(frame):
+            return frame.resize(self.screen, Image.LANCZOS), False
+        self.key(WAKE_KEY)
+        for _ in range(WAKE_CHECKS):
+            time.sleep(1.0)
+            if not is_black(self._fresh_frame()):
+                # The picture can come back as a fade from black: wait for it to hold still.
+                frame, _ = self.capture.settled_frame(time.monotonic() - self.capture.latency)
+                return frame.resize(self.screen, Image.LANCZOS), True
+        return None, True
 
     def zoom(self, x: int, y: int, width: int, height: int) -> Image.Image:
         """The given screen region at the full resolution of the capture."""

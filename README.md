@@ -111,6 +111,8 @@ claude mcp add kvm -- /chemin/vers/mcp-kvm/.venv/bin/mcp-kvm
 
 Outils exposés : `screenshot`, `zoom`, `click`, `move`, `drag`, `scroll`, `type_text`, `key`, `status`, `recalibrate_pointer`. Les coordonnées sont celles de la capture renvoyée (origine en haut à gauche). Chaque action renvoie une nouvelle capture, prise une fois l'écran stabilisé.
 
+Si `screenshot` trouve un écran entièrement noir, le serveur suppose que l'affichage de la cible s'est mis en veille : il appuie sur Maj, puis regarde l'écran une fois par seconde, quatre fois au plus. Dès qu'une image revient, il la renvoie en signalant qu'il a réveillé l'écran. Si l'écran est toujours noir à la cinquième capture, il répond qu'il n'y a pas d'image, sans en joindre.
+
 Pour essayer à la main : `.venv/bin/python -m mcp_kvm.cli` (voir l'aide en tête de [src/mcp_kvm/cli.py](src/mcp_kvm/cli.py)).
 
 ### Une seule façon de cliquer, deux souris
